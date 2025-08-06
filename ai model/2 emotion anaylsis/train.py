@@ -1,3 +1,5 @@
+# Note: I used google collab to run and train this.
+
 import torch
 from torch.utils.data import DataLoader
 from torch.optim import AdamW

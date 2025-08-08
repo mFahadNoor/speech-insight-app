@@ -1,8 +1,8 @@
 import React from 'react';
 import { StyleSheet, Pressable } from 'react-native';
-import { BlurView } from 'expo-blur';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import IconSymbol from '@/components/ui/IconSymbol';
 
 const RecordButton = ({ onPress, isRecording }: { onPress: () => void, isRecording: boolean }) => {
   const scale = useSharedValue(1);
@@ -30,12 +30,10 @@ const RecordButton = ({ onPress, isRecording }: { onPress: () => void, isRecordi
         style={styles.pressable}
       >
         <LinearGradient
-          colors={['rgba(255,255,255,0.2)', 'rgba(255,255,255,0)']}
-          style={styles.gradientBorder}
+          colors={isRecording ? ['#FF6B6B', '#FF8E8E'] : ['#4A4E69', '#6A7B8E']}
+          style={styles.gradient}
         >
-          <BlurView intensity={30} tint="light" style={styles.blurView}>
-            <Animated.View style={[styles.button, isRecording ? styles.recordingButton : {}]} />
-          </BlurView>
+          <IconSymbol name={isRecording ? 'stop.fill' : 'mic.fill'} color="white" size={48} />
         </LinearGradient>
       </Pressable>
     </Animated.View>
@@ -44,11 +42,9 @@ const RecordButton = ({ onPress, isRecording }: { onPress: () => void, isRecordi
 
 const styles = StyleSheet.create({
   container: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -61,30 +57,13 @@ const styles = StyleSheet.create({
   pressable: {
     width: '100%',
     height: '100%',
-    borderRadius: 100,
+    borderRadius: 60,
   },
-  gradientBorder: {
-    borderRadius: 100,
-    padding: 3,
-    width: '100%',
-    height: '100%',
-  },
-  blurView: {
-    ...StyleSheet.absoluteFillObject,
-    borderRadius: 100,
+  gradient: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden',
-  },
-  button: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'red',
-    transition: 'border-radius 0.3s ease',
-  },
-  recordingButton: {
-    borderRadius: 20,
+    borderRadius: 60,
   },
 });
 

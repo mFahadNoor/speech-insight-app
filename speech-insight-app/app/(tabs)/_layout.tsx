@@ -1,3 +1,4 @@
+import IconSymbol from '@/components/ui/IconSymbol';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { withLayoutContext } from 'expo-router';
 
@@ -9,18 +10,32 @@ export default function TabLayout() {
   return (
     <MaterialTopTabs
       screenOptions={{
-        tabBarShowLabel: false,
+        tabBarActiveTintColor: '#fff',
+        tabBarInactiveTintColor: '#888',
         tabBarIndicatorStyle: {
-            backgroundColor: 'transparent',
+          backgroundColor: '#fff',
+          height: 2,
         },
         tabBarStyle: {
-            backgroundColor: 'transparent',
-            height: 0,
+          backgroundColor: '#1D1D1D',
         },
+        tabBarShowIcon: true,
       }}
-      >
-      <MaterialTopTabs.Screen name="home" />
-      <MaterialTopTabs.Screen name="history" />
+    >
+      <MaterialTopTabs.Screen
+        name="home"
+        options={{
+          tabBarLabel: 'Home',
+          tabBarIcon: ({ color }: { color: string }) => <IconSymbol name="house.fill" color={color} />,
+        }}
+      />
+      <MaterialTopTabs.Screen
+        name="history"
+        options={{
+          tabBarLabel: 'History',
+          tabBarIcon: ({ color }: { color: string }) => <IconSymbol name="clock.fill" color={color} />,
+        }}
+      />
     </MaterialTopTabs>
   );
 }

@@ -1,10 +1,18 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, Text, Pressable, AppState } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import RecordButton from '@/components/RecordButton';
 import SpeechWave from '@/components/SpeechWave';
 import { Audio } from 'expo-av';
-import Animated, { useSharedValue, withTiming } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useSharedValue, withTiming } from 'react-native-reanimated';
+import { saveRecording } from '../services/storage';
+import IconSymbol from '@/components/ui/IconSymbol';
+
+const ControlButton = ({ onPress, icon, color = 'white' }: { onPress: () => void, icon: any, color?: string }) => (
+  <Pressable onPress={onPress} style={styles.controlButton}>
+    <IconSymbol name={icon} color={color} size={32} />
+  </Pressable>
+);
 
 export default function HomeScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
@@ -12,8 +20,27 @@ export default function HomeScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<number | null>(null);
   const amplitude = useSharedValue(0);
+
+  const stopRecording = useCallback(async () => {
+    if (!recording) {
+      return;
+    }
+    setIsRecording(false);
+    setIsPaused(false);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    setElapsedTime(0);
+    await recording.stopAndUnloadAsync();
+    const uri = recording.getURI();
+    if (uri) {
+      await saveRecording(uri);
+    }
+    setRecording(null);
+    amplitude.value = withTiming(0, { duration: 500 });
+  }, [recording]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
@@ -25,7 +52,7 @@ export default function HomeScreen() {
     return () => {
       subscription.remove();
     };
-  }, [recording]);
+  }, [recording, stopRecording]);
 
   async function startRecording() {
     try {
@@ -39,8 +66,7 @@ export default function HomeScreen() {
 
       const { recording } = await Audio.Recording.createAsync(
          Audio.RecordingOptionsPresets.HIGH_QUALITY,
-         undefined,
-         (status) => {
+         (status: any) => {
             if(status.isRecording) {
                 amplitude.value = withTiming(status.metering ? (status.metering + 160) / 160 : 0, { duration: 100 });
             }
@@ -56,24 +82,6 @@ export default function HomeScreen() {
     } catch (err) {
       console.error('Failed to start recording', err);
     }
-  }
-
-  async function stopRecording() {
-    if (!recording) {
-        return;
-    }
-    setIsRecording(false);
-    setIsPaused(false);
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-    setElapsedTime(0);
-    await recording.stopAndUnloadAsync();
-    const uri = recording.getURI();
-    console.log('Recording stopped and stored at', uri);
-    // Here you would save the recording to the history
-    setRecording(null);
-    amplitude.value = withTiming(0, { duration: 500 });
   }
 
   async function togglePause() {
@@ -102,39 +110,41 @@ export default function HomeScreen() {
   };
 
   return (
-    <LinearGradient
-      colors={['#1D2B3A', '#1D1D1D']}
-      style={styles.container}
-    >
-      <View style={styles.timerContainer}>
-        <Text style={styles.timerText}>{formatTime(elapsedTime)}</Text>
-      </View>
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#2A2D34', '#1E1E1E']}
+        style={StyleSheet.absoluteFill}
+      />
+      <View style={styles.contentContainer}>
+        <View style={styles.timerContainer}>
+          <Text style={styles.timerText}>{formatTime(elapsedTime)}</Text>
+        </View>
 
-      <View style={styles.waveContainer}>
-        <SpeechWave amplitude={amplitude} />
-      </View>
+        <View style={styles.waveContainer}>
+          <SpeechWave amplitude={amplitude} />
+        </View>
 
-      <View style={styles.controlsContainer}>
-        {isRecording ? (
-          <View style={styles.recordingControls}>
-            <Pressable onPress={togglePause} style={styles.controlButton}>
-              <Text style={styles.controlButtonText}>{isPaused ? 'Resume' : 'Pause'}</Text>
-            </Pressable>
-            <RecordButton onPress={stopRecording} isRecording={isRecording} />
-            <Pressable onPress={stopRecording} style={styles.controlButton}>
-              <Text style={styles.controlButtonText}>Stop</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <RecordButton onPress={startRecording} isRecording={isRecording} />
-        )}
+        <View style={styles.controlsContainer}>
+          {isRecording ? (
+            <View style={styles.recordingControls}>
+              <ControlButton onPress={togglePause} icon={isPaused ? 'play.fill' : 'pause.fill'} />
+              <RecordButton onPress={stopRecording} isRecording={isRecording} />
+              <ControlButton onPress={stopRecording} icon="stop.fill" color="red" />
+            </View>
+          ) : (
+            <RecordButton onPress={startRecording} isRecording={isRecording} />
+          )}
+        </View>
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  contentContainer: {
     flex: 1,
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -170,10 +180,5 @@ const styles = StyleSheet.create({
   },
   controlButton: {
     padding: 20,
-  },
-  controlButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: '500',
   },
 });

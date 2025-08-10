@@ -14,12 +14,24 @@ const ControlButton = ({ onPress, icon, color = 'white' }: { onPress: () => void
   </Pressable>
 );
 
+// This function maps a dB value to a 0-1 range for visualization using a power scale
+const mapDbToAmplitude = (db: number) => {
+  const minDb = -60;
+  if (db < minDb) return 0;
+  if (db > 0) return 1;
+  
+  const linearValue = (db - minDb) / -minDb;
+  // Use a higher power to make the visualization even less sensitive to low volumes
+  return Math.pow(linearValue, 3);
+};
+
 export default function HomeScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [permissionResponse, requestPermission] = Audio.usePermissions();
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
+  const [waveformData, setWaveformData] = useState<number[]>([]);
   const intervalRef = useRef<number | null>(null);
   const amplitude = useSharedValue(0);
 
@@ -32,15 +44,18 @@ export default function HomeScreen() {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
-    setElapsedTime(0);
+    
     await recording.stopAndUnloadAsync();
     const uri = recording.getURI();
     if (uri) {
-      await saveRecording(uri);
+      // Pass the raw waveform data, not the visualized data
+      await saveRecording(uri, elapsedTime * 1000, waveformData);
     }
+    setElapsedTime(0);
     setRecording(null);
+    setWaveformData([]);
     amplitude.value = withTiming(0, { duration: 500 });
-  }, [recording]);
+  }, [recording, elapsedTime, amplitude, waveformData]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
@@ -66,9 +81,13 @@ export default function HomeScreen() {
 
       const { recording } = await Audio.Recording.createAsync(
          Audio.RecordingOptionsPresets.HIGH_QUALITY,
-         (status: any) => {
-            if(status.isRecording) {
-                amplitude.value = withTiming(status.metering ? (status.metering + 160) / 160 : 0, { duration: 100 });
+         (status) => {
+            if(status.isRecording && status.metering) {
+                const dbValue = status.metering;
+                // Store the raw dB value for the saved waveform
+                setWaveformData(prev => [...prev, dbValue]);
+                // Map to a non-linear amplitude for the live visualizer
+                amplitude.value = withTiming(mapDbToAmplitude(dbValue), { duration: 100 });
             }
          },
          100

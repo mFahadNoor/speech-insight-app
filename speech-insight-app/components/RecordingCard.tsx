@@ -21,7 +21,7 @@ const RecordingCard = ({ id, title, timestamp, duration, isPlaying, onPlay, inde
 
   React.useEffect(() => {
     progress.value = withTiming(1, { duration: 500 + index * 100 });
-  }, []);
+  }, [progress, index]);
 
   const animatedStyle = useAnimatedStyle(() => {
     const scaleValue = interpolate(progress.value, [0, 1], [0.8, 1]);

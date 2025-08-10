@@ -1,186 +1,322 @@
+import { analyzeEmotions, EmotionSummary } from '@/ai_model/emotion_analyzer';
 import AudioWaveform from '@/components/AudioWaveform';
+import CollapsibleSection from '@/components/CollapsibleSection';
 import IconSymbol from '@/components/ui/IconSymbol';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, StatusBar } from 'react-native';
-import { Audio } from 'expo-av';
-import Animated, { useSharedValue, withTiming, FadeIn } from 'react-native-reanimated';
-import { LinearGradient } from 'expo-linear-gradient';
+import { RecordingData } from '@/types';
+import Voice, { SpeechResultsEvent } from '@react-native-voice/voice';
 import { format } from 'date-fns';
+import { Audio, AVPlaybackStatus } from 'expo-av';
+import { BlurView } from 'expo-blur';
+import { useLocalSearchParams, useNavigation } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSharedValue } from 'react-native-reanimated';
+import { getRecordingData, updateRecordingTitle } from './../services/storage';
+
+const useDebounce = (value: string, delay: number) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+  return debouncedValue;
+};
 
 export default function RecordingDetailScreen() {
-  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const navigation = useNavigation();
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [position, setPosition] = useState(0);
+  const [recordingData, setRecordingData] = useState<RecordingData | null>(null);
+  const [title, setTitle] = useState('');
+  const [transcript, setTranscript] = useState('');
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [emotionSummary, setEmotionSummary] = useState<EmotionSummary | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const progress = useSharedValue(0);
+  const debouncedTitle = useDebounce(title, 500);
 
-  const decodedId = id ? decodeURIComponent(id) : '';
+  const decodedUri = id ? `file://${decodeURIComponent(id)}` : '';
 
-  const formatTimestamp = (uri: string) => {
-    if (!uri) return 'Invalid date';
-    const match = uri.match(/recording-(\d+)\.m4a/);
-    if (!match) return 'Invalid date';
-    const timestamp = parseInt(match[1], 10);
-    return format(new Date(timestamp), "MMMM d, yyyy 'at' h:mm a");
+  useEffect(() => {
+    const onSpeechResults = (e: SpeechResultsEvent) => {
+      if (e.value) {
+        setTranscript(e.value[0]);
+        analyzeTranscript(e.value[0]);
+      }
+      setIsTranscribing(false);
+    };
+
+    const onSpeechError = (e: any) => {
+      console.error(e);
+      setIsTranscribing(false);
+    };
+
+    Voice.onSpeechResults = onSpeechResults;
+    Voice.onSpeechError = onSpeechError;
+
+    return () => {
+      Voice.destroy().then(Voice.removeAllListeners);
+    };
+  }, []);
+
+  useEffect(() => {
+    const loadRecording = async () => {
+      if (!decodedUri) return;
+      const data = await getRecordingData(decodedUri);
+      setRecordingData(data);
+      setTitle(data?.title || 'Recording');
+      
+      if (data?.uri) {
+        transcribeRecording(data.uri);
+      }
+    };
+    loadRecording();
+  }, [decodedUri]);
+
+  useEffect(() => {
+    if (debouncedTitle && recordingData) {
+      updateRecordingTitle(recordingData.uri, debouncedTitle);
+    }
+  }, [debouncedTitle, recordingData]);
+
+  const transcribeRecording = async (uri: string) => {
+    setIsTranscribing(true);
+    try {
+      await Voice.start('en-US', {
+        RECOGNIZE_PARTIAL_RESULTS: false,
+        AUDIO_SOURCE: uri,
+      });
+    } catch (e) {
+      console.error(e);
+      setIsTranscribing(false);
+    }
   };
 
-  const formatTime = (milliseconds: number) => {
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  const analyzeTranscript = async (text: string) => {
+    setIsAnalyzing(true);
+    const summary = await analyzeEmotions(text);
+    setEmotionSummary(summary);
+    setIsAnalyzing(false);
   };
+
+  const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
+    if (!status.isLoaded) return;
+    setPosition(status.positionMillis);
+    setDuration(status.durationMillis || 0);
+    setIsPlaying(status.isPlaying);
+    progress.value = (status.positionMillis || 0) / (status.durationMillis || 1);
+  }, [progress]);
 
   useEffect(() => {
     const loadSound = async () => {
-      if (!decodedId) return;
-      const { sound, status } = await Audio.Sound.createAsync(
-        { uri: `file://${decodedId}` },
-        { shouldPlay: false }
-      );
-      setSound(sound);
-      if (status.isLoaded) {
-        setDuration(status.durationMillis || 0);
+      if (!recordingData) return;
+      try {
+        const { sound: newSound, status } = await Audio.Sound.createAsync(
+          { uri: recordingData.uri },
+          { shouldPlay: false, progressUpdateIntervalMillis: 100 },
+          onPlaybackStatusUpdate
+        );
+        setSound(newSound);
+        if (status.isLoaded) {
+          setDuration(status.durationMillis || 0);
+        }
+      } catch (error) {
+        console.error("Failed to load sound", error);
       }
-      sound.setOnPlaybackStatusUpdate(onPlaybackStatusUpdate);
     };
-
     loadSound();
-
     return () => {
       sound?.unloadAsync();
     };
-  }, [decodedId]);
-
-  const onPlaybackStatusUpdate = (status: any) => {
-    if (!status.isLoaded) return;
-    setPosition(status.positionMillis);
-    setDuration(status.durationMillis);
-    setIsPlaying(status.isPlaying);
-    progress.value = withTiming(status.positionMillis / status.durationMillis, { duration: 100 });
-  };
+  }, [recordingData, onPlaybackStatusUpdate]);
 
   const handlePlayPause = async () => {
     if (!sound) return;
     if (isPlaying) {
       await sound.pauseAsync();
     } else {
-      await sound.playAsync();
+      if (position === duration) {
+        await sound.replayAsync();
+      } else {
+        await sound.playAsync();
+      }
     }
   };
 
+  const handleSeek = async (seekProgress: number) => {
+    if (!sound || duration === 0) return;
+    const newPosition = seekProgress * duration;
+    await sound.setPositionAsync(newPosition);
+  };
+
+  const formatTime = (millis: number) => {
+    const totalSeconds = Math.floor(millis / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const getTimestamp = (timestamp: number | undefined) => {
+    if (!timestamp) return 'Invalid date';
+    return format(new Date(timestamp), "MMM d, yyyy 'at' h:mm a");
+  };
+
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <LinearGradient colors={['#2A2D34', '#1E1E1E']} style={styles.background} />
-      <Animated.View style={styles.header} entering={FadeIn.duration(500)}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <IconSymbol name="chevron.backward" color="#fff" size={24} />
+    <Pressable style={styles.container} onPress={Keyboard.dismiss}>
+      <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+      <View style={styles.header}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+          <IconSymbol name="chevron.backward" size={24} color="#fff" />
         </Pressable>
-        <View>
-          <Text style={styles.headerTitle}>Session Details</Text>
-          <Text style={styles.headerSubtitle}>{formatTimestamp(decodedId)}</Text>
+      </View>
+      <ScrollView style={styles.content}>
+        <TextInput
+          style={styles.titleInput}
+          value={title}
+          onChangeText={setTitle}
+          placeholder="Enter recording title"
+          placeholderTextColor="#888"
+        />
+        <Text style={styles.timestamp}>{getTimestamp(recordingData?.timestamp)}</Text>
+        
+        <AudioWaveform 
+          progress={progress} 
+          waveformData={recordingData?.waveformData || []}
+          onSeek={handleSeek}
+        />
+
+        <View style={styles.controls}>
+          <Text style={styles.timeText}>{formatTime(position)}</Text>
+          <Pressable 
+            onPress={handlePlayPause} 
+            style={({ pressed }) => [
+              styles.playButton,
+              { opacity: pressed ? 0.7 : 1, transform: [{ scale: pressed ? 0.95 : 1 }] }
+            ]}
+          >
+            <IconSymbol name={isPlaying ? 'pause.fill' : 'play.fill'} size={32} color="#fff" />
+          </Pressable>
+          <Text style={styles.timeText}>{formatTime(duration)}</Text>
         </View>
-      </Animated.View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Animated.View entering={FadeIn.duration(500).delay(200)}>
-          <AudioWaveform progress={progress} />
-          <View style={styles.controlsContainer}>
-            <Text style={styles.timeText}>{formatTime(position)}</Text>
-            <Pressable onPress={handlePlayPause} style={styles.playButton}>
-              <IconSymbol name={isPlaying ? 'pause.fill' : 'play.fill'} size={32} color="#fff" />
-            </Pressable>
-            <Text style={styles.timeText}>{formatTime(duration)}</Text>
-          </View>
-        </Animated.View>
+        <CollapsibleSection title="Transcript">
+          {isTranscribing ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.transcriptText}>{transcript}</Text>
+          )}
+        </CollapsibleSection>
 
-        <Animated.View style={styles.analysisContainer} entering={FadeIn.duration(500).delay(400)}>
-          <Text style={styles.analysisTitle}>AI Analysis</Text>
-          <Text style={styles.analysisPlaceholder}>
-            In-depth analysis of your speech patterns, including tone, pace, and clarity will be available here in a future update.
-          </Text>
-        </Animated.View>
+        <CollapsibleSection title="AI Insights">
+          {isAnalyzing ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <View>
+              <Text style={styles.aiInsightTitle}>Dominant Emotion: {emotionSummary?.dominantEmotion}</Text>
+              {emotionSummary?.emotionScores.map((item, index) => (
+                <View key={index} style={styles.emotionRow}>
+                  <Text style={styles.emotionLabel}>{item.emotion}</Text>
+                  <View style={styles.emotionBarContainer}>
+                    <View style={[styles.emotionBar, { width: `${item.score * 100}%` }]} />
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+        </CollapsibleSection>
+
       </ScrollView>
-    </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1E1E1E',
-  },
-  background: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    height: '100%',
   },
   header: {
+    marginTop: 60,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 20,
+    zIndex: 1,
   },
   backButton: {
     padding: 8,
-    marginRight: 12,
   },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  headerSubtitle: {
-    color: '#A0A0A0',
-    fontSize: 14,
-  },
-  scrollContent: {
+  content: {
+    flex: 1,
     padding: 20,
   },
-  controlsContainer: {
+  titleInput: {
+    color: '#fff',
+    fontSize: 28,
+    fontWeight: 'bold',
+    borderBottomColor: 'rgba(255,255,255,0.2)',
+    borderBottomWidth: 1,
+    paddingBottom: 8,
+    marginBottom: 8,
+  },
+  timestamp: {
+    color: '#aaa',
+    fontSize: 16,
+    marginBottom: 30,
+  },
+  controls: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'space-around',
     alignItems: 'center',
-    marginTop: 20,
-    paddingHorizontal: 10,
+    marginTop: 30,
+  },
+  playButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(94, 92, 230, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   timeText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '600',
-    width: 60,
-    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
   },
-  playButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  transcriptText: {
+    color: '#E0E0E0',
+    fontSize: 16,
+    lineHeight: 24,
   },
-  analysisContainer: {
-    marginTop: 40,
-    padding: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
-  },
-  analysisTitle: {
+  aiInsightTitle: {
     color: '#fff',
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 12,
   },
-  analysisPlaceholder: {
-    color: '#A0A0A0',
-    fontSize: 16,
-    lineHeight: 24,
+  emotionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  emotionLabel: {
+    color: '#E0E0E0',
+    width: 80,
+  },
+  emotionBarContainer: {
+    flex: 1,
+    height: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 5,
+  },
+  emotionBar: {
+    height: 10,
+    backgroundColor: '#FCA311',
+    borderRadius: 5,
   },
 });

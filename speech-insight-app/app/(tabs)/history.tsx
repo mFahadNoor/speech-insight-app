@@ -29,29 +29,7 @@ export default function HistoryScreen() {
 
   async function loadRecordings() {
     const fetchedRecordings = await getRecordings();
-    const recordingsWithMetadata = await Promise.all(
-      fetchedRecordings.map(async (file) => {
-        try {
-          const { sound, status } = await Audio.Sound.createAsync({ uri: file.uri });
-          const durationMillis = status.isLoaded && status.durationMillis != null
-            ? status.durationMillis
-            : 0;
-
-          await sound.unloadAsync();
-          return {
-            ...file,
-            duration: durationMillis,
-          };
-        } catch (error) {
-          console.error('Failed to load recording metadata:', error);
-          return {
-            ...file,
-            duration: 0,
-          };
-        }
-      })
-    );
-    setRecordings(recordingsWithMetadata.reverse());
+    setRecordings(fetchedRecordings.sort((a, b) => b.timestamp - a.timestamp));
   }
 
   async function onPlay(uri: string) {
@@ -75,10 +53,7 @@ export default function HistoryScreen() {
     await newSound.playAsync();
   }
 
-  const formatTimestamp = (name: string) => {
-    const match = name.match(/recording-(\d+)\.m4a/);
-    if (!match) return 'Invalid date';
-    const timestamp = parseInt(match[1], 10);
+  const formatTimestamp = (timestamp: number) => {
     return format(new Date(timestamp), "MMM d, yyyy 'at' h:mm a");
   };
 
@@ -92,8 +67,8 @@ export default function HistoryScreen() {
   const renderItem = ({ item, index }: { item: RecordingData, index: number }) => (
     <RecordingCard
       id={item.uri}
-      title={`Session #${recordings.length - index}`}
-      timestamp={formatTimestamp(item.name)}
+      title={item.title}
+      timestamp={formatTimestamp(item.timestamp)}
       duration={formatDuration(item.duration)}
       isPlaying={playingUri === item.uri}
       onPlay={() => onPlay(item.uri)}
@@ -114,8 +89,8 @@ export default function HistoryScreen() {
           <Text style={styles.subHeader}>Your recorded sessions</Text>
         </Animated.View>
         <AnimatedFlatList
-          data={recordings as RecordingData[]}
-          keyExtractor={(item: any) => item.uri}
+          data={recordings}
+          keyExtractor={(item) => item.uri}
           renderItem={renderItem}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
@@ -125,7 +100,6 @@ export default function HistoryScreen() {
             </View>
           }
           ItemSeparatorComponent={() => <View style={{ height: 4 }} />}
-          // itemLayoutAnimation={FadeIn}
         />
       </SafeAreaView>
     </View>

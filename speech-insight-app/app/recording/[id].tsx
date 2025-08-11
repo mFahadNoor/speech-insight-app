@@ -1,9 +1,7 @@
-import { analyzeEmotions, EmotionSummary } from '@/ai_model/emotion_analyzer';
 import AudioWaveform from '@/components/AudioWaveform';
 import CollapsibleSection from '@/components/CollapsibleSection';
 import IconSymbol from '@/components/ui/IconSymbol';
-import { RecordingData } from '@/types';
-import Voice, { SpeechResultsEvent } from '@react-native-voice/voice';
+import { EmotionSummary, RecordingData } from '@/types';
 import { format } from 'date-fns';
 import { Audio, AVPlaybackStatus } from 'expo-av';
 import { BlurView } from 'expo-blur';
@@ -11,7 +9,9 @@ import { useLocalSearchParams, useNavigation } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Keyboard, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
-import { getRecordingData, updateRecordingTitle } from './../services/storage';
+import { getTranscriptionResult, transcribeAudio, uploadAudio } from '../services/assemblyai';
+import { analyzeText } from '../services/gemini';
+import { getRecordingData, updateRecordingTitle } from '../services/storage';
 
 const useDebounce = (value: string, delay: number) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -45,28 +45,6 @@ export default function RecordingDetailScreen() {
   const decodedUri = id ? `file://${decodeURIComponent(id)}` : '';
 
   useEffect(() => {
-    const onSpeechResults = (e: SpeechResultsEvent) => {
-      if (e.value) {
-        setTranscript(e.value[0]);
-        analyzeTranscript(e.value[0]);
-      }
-      setIsTranscribing(false);
-    };
-
-    const onSpeechError = (e: any) => {
-      console.error(e);
-      setIsTranscribing(false);
-    };
-
-    Voice.onSpeechResults = onSpeechResults;
-    Voice.onSpeechError = onSpeechError;
-
-    return () => {
-      Voice.destroy().then(Voice.removeAllListeners);
-    };
-  }, []);
-
-  useEffect(() => {
     const loadRecording = async () => {
       if (!decodedUri) return;
       const data = await getRecordingData(decodedUri);
@@ -89,10 +67,23 @@ export default function RecordingDetailScreen() {
   const transcribeRecording = async (uri: string) => {
     setIsTranscribing(true);
     try {
-      await Voice.start('en-US', {
-        RECOGNIZE_PARTIAL_RESULTS: false,
-        AUDIO_SOURCE: uri,
-      });
+      const uploadUrl = await uploadAudio(uri);
+      const transcriptId = await transcribeAudio(uploadUrl);
+
+      const poll = async () => {
+        const result = await getTranscriptionResult(transcriptId);
+        if (result.status === 'completed') {
+          setTranscript(result.text);
+          analyzeTranscript(result.text);
+          setIsTranscribing(false);
+        } else if (result.status === 'failed') {
+          console.error('Transcription failed');
+          setIsTranscribing(false);
+        } else {
+          setTimeout(poll, 5000);
+        }
+      };
+      poll();
     } catch (e) {
       console.error(e);
       setIsTranscribing(false);
@@ -101,8 +92,13 @@ export default function RecordingDetailScreen() {
 
   const analyzeTranscript = async (text: string) => {
     setIsAnalyzing(true);
-    const summary = await analyzeEmotions(text);
-    setEmotionSummary(summary);
+    try {
+      const result = await analyzeText(text);
+      const summary = JSON.parse(result.candidates[0].content.parts[0].text);
+      setEmotionSummary(summary);
+    } catch (e) {
+      console.error(e);
+    }
     setIsAnalyzing(false);
   };
 
@@ -220,7 +216,7 @@ export default function RecordingDetailScreen() {
           ) : (
             <View>
               <Text style={styles.aiInsightTitle}>Dominant Emotion: {emotionSummary?.dominantEmotion}</Text>
-              {emotionSummary?.emotionScores.map((item, index) => (
+              {emotionSummary?.emotionScores.map((item: any, index: any) => (
                 <View key={index} style={styles.emotionRow}>
                   <Text style={styles.emotionLabel}>{item.emotion}</Text>
                   <View style={styles.emotionBarContainer}>

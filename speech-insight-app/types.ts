@@ -6,3 +6,13 @@ export interface RecordingData {
   timestamp: number;
   waveformData?: number[];
 }
+
+export interface EmotionScore {
+  emotion: string;
+  score: number;
+}
+
+export interface EmotionSummary {
+  dominantEmotion: string;
+  emotionScores: EmotionScore[];
+}

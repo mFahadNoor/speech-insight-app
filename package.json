@@ -4,5 +4,9 @@
     "moti": "^0.30.0",
     "react-native-gesture-handler": "^2.28.0",
     "react-native-reanimated": "^4.0.2"
+  },
+  "devDependencies": {
+    "typescript": "~5.8.3",
+    "@types/react": "~19.0.10"
   }
 }

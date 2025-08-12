@@ -52,7 +52,10 @@ export default function RecordingDetailScreen() {
       setTitle(data?.title || 'Recording');
       
       if (data?.uri) {
+        console.log('Transcribing recording with URI:', data.uri);
         transcribeRecording(data.uri);
+      } else {
+        console.log('No URI found for this recording.');
       }
     };
     loadRecording();
@@ -71,13 +74,17 @@ export default function RecordingDetailScreen() {
       const transcriptId = await transcribeAudio(uploadUrl);
 
       const poll = async () => {
+        console.log('Polling for transcription result...');
         const result = await getTranscriptionResult(transcriptId);
+        console.log('Transcription status:', result.status);
         if (result.status === 'completed') {
           setTranscript(result.text);
-          analyzeTranscript(result.text);
+          if (result.text) {
+            analyzeTranscript(result.text);
+          }
           setIsTranscribing(false);
-        } else if (result.status === 'failed') {
-          console.error('Transcription failed');
+        } else if (result.status === 'failed' || result.status === 'error') {
+          console.error('Transcription failed or errored:', result.error);
           setIsTranscribing(false);
         } else {
           setTimeout(poll, 5000);
@@ -94,10 +101,19 @@ export default function RecordingDetailScreen() {
     setIsAnalyzing(true);
     try {
       const result = await analyzeText(text);
-      const summary = JSON.parse(result.candidates[0].content.parts[0].text);
+      let responseText = result.candidates[0].content.parts[0].text;
+      console.log('Gemini API Response:', responseText);
+      
+      // Clean the response text
+      const match = responseText.match(/```json\n([\s\S]*?)\n```/);
+      if (match) {
+        responseText = match[1];
+      }
+
+      const summary = JSON.parse(responseText);
       setEmotionSummary(summary);
     } catch (e) {
-      console.error(e);
+      console.error('Failed to parse or analyze transcript:', e);
     }
     setIsAnalyzing(false);
   };

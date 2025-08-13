@@ -55,7 +55,7 @@ export default function HomeScreen() {
     setRecording(null);
     setWaveformData([]);
     amplitude.value = withTiming(0, { duration: 500 });
-  }, [recording, elapsedTime, amplitude, waveformData]);
+  }, [recording, elapsedTime, waveformData, amplitude]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
@@ -148,7 +148,7 @@ export default function HomeScreen() {
             <View style={styles.recordingControls}>
               <ControlButton onPress={togglePause} icon={isPaused ? 'play.fill' : 'pause.fill'} />
               <RecordButton onPress={stopRecording} isRecording={isRecording} />
-              <ControlButton onPress={stopRecording} icon="stop.fill" color="red" />
+              <View style={{ width: 80 }} />
             </View>
           ) : (
             <RecordButton onPress={startRecording} isRecording={isRecording} />

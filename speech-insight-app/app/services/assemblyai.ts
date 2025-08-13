@@ -3,7 +3,6 @@ import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system';
 
 const ASSEMBLYAI_API_KEY = Constants.expoConfig?.extra?.ASSEMBLYAI_API_KEY;
-console.log('Using AssemblyAI API Key:', ASSEMBLYAI_API_KEY); // Debugging line
 
 const assemblyai = axios.create({
   baseURL: 'https://api.assemblyai.com/v2',

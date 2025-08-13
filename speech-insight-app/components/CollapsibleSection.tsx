@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import IconSymbol from './ui/IconSymbol';
+import CustomIcon from './ui/IconSymbol';
 
 interface CollapsibleSectionProps {
   title: string;
@@ -37,7 +37,7 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({ title, children
       <Pressable onPress={toggleExpand} style={styles.header}>
         <Text style={styles.title}>{title}</Text>
         <Animated.View style={animatedRotation}>
-          <IconSymbol name="chevron.down" size={20} color="#fff" />
+          <CustomIcon name="chevron.down" size={20} color="#fff" />
         </Animated.View>
       </Pressable>
       <Animated.View style={[styles.content, animatedHeight]}>

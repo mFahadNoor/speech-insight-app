@@ -23,6 +23,8 @@ const WaveBar = React.memo(({ bar, index, totalBars, progress }: { bar: number, 
   return <Animated.View style={[styles.waveBar, { height: `${bar * 90 + 10}%` }, animatedStyle]} />;
 });
 
+WaveBar.displayName = 'WaveBar';
+
 const AudioWaveform: React.FC<AudioWaveformProps> = ({ progress, waveformData, onSeek }) => {
   const containerWidth = useRef(0);
   const numBars = 70;

@@ -3,7 +3,7 @@ import { Link } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
-import IconSymbol from './ui/IconSymbol';
+import CustomIcon from './ui/IconSymbol';
 
 interface RecordingCardProps {
   id: string;
@@ -53,7 +53,7 @@ const RecordingCard = ({ id, title, timestamp, duration, isPlaying, onPlay, inde
               <View style={styles.controlsContainer}>
                 <Text style={styles.duration}>{duration}</Text>
                 <Pressable onPress={(e) => { e.stopPropagation(); onPlay(); }} style={styles.playButton}>
-                  <IconSymbol name={isPlaying ? 'pause.fill' : 'play.fill'} color="#fff" size={22} />
+                  <CustomIcon name={isPlaying ? 'pause.fill' : 'play.fill'} color="#fff" size={22} />
                 </Pressable>
               </View>
             </View>

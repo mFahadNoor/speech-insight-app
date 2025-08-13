@@ -11,20 +11,13 @@ import { ActivityIndicator, Keyboard, Pressable, ScrollView, StyleSheet, Text, T
 import { useSharedValue } from 'react-native-reanimated';
 import { getTranscriptionResult, transcribeAudio, uploadAudio } from '../services/assemblyai';
 import { analyzeText } from '../services/gemini';
-import { getRecordingData, updateRecordingTitle } from '../services/storage';
+import { getRecordingData } from '../services/storage';
 
-const useDebounce = (value: string, delay: number) => {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-  return debouncedValue;
-};
+const Button = ({ title, onPress, style, textStyle }: any) => (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.button, { opacity: pressed ? 0.7 : 1 }, style]}>
+      <Text style={[styles.buttonText, textStyle]}>{title}</Text>
+    </Pressable>
+  );
 
 export default function RecordingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -39,10 +32,59 @@ export default function RecordingDetailScreen() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [emotionSummary, setEmotionSummary] = useState<EmotionSummary | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const progress = useSharedValue(0);
-  const debouncedTitle = useDebounce(title, 500);
 
   const decodedUri = id ? `file://${decodeURIComponent(id)}` : '';
+
+  const analyzeTranscript = useCallback(async (text: string) => {
+    setIsAnalyzing(true);
+    setError(null);
+    try {
+      const result = await analyzeText(text);
+      let responseText = result.candidates[0].content.parts[0].text;
+      
+      const match = responseText.match(/```json\s([\s\S]*?)\s```/);
+      if (match) {
+        responseText = match[1];
+      }
+
+      const summary = JSON.parse(responseText);
+      setEmotionSummary(summary);
+    } catch (e: any) {
+      setError(e.message || 'An unknown error occurred during analysis.');
+    }
+    setIsAnalyzing(false);
+  }, []);
+
+  const transcribeRecording = useCallback(async (uri: string) => {
+    setIsTranscribing(true);
+    setError(null);
+    try {
+      const uploadUrl = await uploadAudio(uri);
+      const transcriptId = await transcribeAudio(uploadUrl);
+
+      const poll = async () => {
+        const result = await getTranscriptionResult(transcriptId);
+        if (result.status === 'completed') {
+          setTranscript(result.text);
+          if (result.text) {
+            analyzeTranscript(result.text);
+          }
+          setIsTranscribing(false);
+        } else if (result.status === 'failed' || result.status === 'error') {
+          setError(result.error || 'Transcription failed. Please try again.');
+          setIsTranscribing(false);
+        } else {
+          setTimeout(poll, 5000);
+        }
+      };
+      poll();
+    } catch (e: any) {
+      setError(e.message || 'An unknown error occurred during transcription.');
+      setIsTranscribing(false);
+    }
+  }, [analyzeTranscript]);
 
   useEffect(() => {
     const loadRecording = async () => {
@@ -52,71 +94,11 @@ export default function RecordingDetailScreen() {
       setTitle(data?.title || 'Recording');
       
       if (data?.uri) {
-        console.log('Transcribing recording with URI:', data.uri);
         transcribeRecording(data.uri);
-      } else {
-        console.log('No URI found for this recording.');
       }
     };
     loadRecording();
-  }, [decodedUri]);
-
-  useEffect(() => {
-    if (debouncedTitle && recordingData) {
-      updateRecordingTitle(recordingData.uri, debouncedTitle);
-    }
-  }, [debouncedTitle, recordingData]);
-
-  const transcribeRecording = async (uri: string) => {
-    setIsTranscribing(true);
-    try {
-      const uploadUrl = await uploadAudio(uri);
-      const transcriptId = await transcribeAudio(uploadUrl);
-
-      const poll = async () => {
-        console.log('Polling for transcription result...');
-        const result = await getTranscriptionResult(transcriptId);
-        console.log('Transcription status:', result.status);
-        if (result.status === 'completed') {
-          setTranscript(result.text);
-          if (result.text) {
-            analyzeTranscript(result.text);
-          }
-          setIsTranscribing(false);
-        } else if (result.status === 'failed' || result.status === 'error') {
-          console.error('Transcription failed or errored:', result.error);
-          setIsTranscribing(false);
-        } else {
-          setTimeout(poll, 5000);
-        }
-      };
-      poll();
-    } catch (e) {
-      console.error(e);
-      setIsTranscribing(false);
-    }
-  };
-
-  const analyzeTranscript = async (text: string) => {
-    setIsAnalyzing(true);
-    try {
-      const result = await analyzeText(text);
-      let responseText = result.candidates[0].content.parts[0].text;
-      console.log('Gemini API Response:', responseText);
-      
-      // Clean the response text
-      const match = responseText.match(/```json\n([\s\S]*?)\n```/);
-      if (match) {
-        responseText = match[1];
-      }
-
-      const summary = JSON.parse(responseText);
-      setEmotionSummary(summary);
-    } catch (e) {
-      console.error('Failed to parse or analyze transcript:', e);
-    }
-    setIsAnalyzing(false);
-  };
+  }, [decodedUri, transcribeRecording]);
 
   const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
@@ -147,7 +129,7 @@ export default function RecordingDetailScreen() {
     return () => {
       sound?.unloadAsync();
     };
-  }, [recordingData, onPlaybackStatusUpdate]);
+  }, [recordingData, onPlaybackStatusUpdate, sound]);
 
   const handlePlayPause = async () => {
     if (!sound) return;
@@ -166,6 +148,16 @@ export default function RecordingDetailScreen() {
     if (!sound || duration === 0) return;
     const newPosition = seekProgress * duration;
     await sound.setPositionAsync(newPosition);
+  };
+
+  const handleRetry = () => {
+    if (recordingData?.uri) {
+      if (!transcript) {
+        transcribeRecording(recordingData.uri);
+      } else {
+        analyzeTranscript(transcript);
+      }
+    }
   };
 
   const formatTime = (millis: number) => {
@@ -221,6 +213,11 @@ export default function RecordingDetailScreen() {
         <CollapsibleSection title="Transcript">
           {isTranscribing ? (
             <ActivityIndicator color="#fff" />
+          ) : error && !transcript ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+              <Button title="Retry" onPress={handleRetry} />
+            </View>
           ) : (
             <Text style={styles.transcriptText}>{transcript}</Text>
           )}
@@ -229,10 +226,21 @@ export default function RecordingDetailScreen() {
         <CollapsibleSection title="AI Insights">
           {isAnalyzing ? (
             <ActivityIndicator color="#fff" />
-          ) : (
+          ) : error && transcript ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+              <Button title="Retry" onPress={handleRetry} />
+            </View>
+          ) : emotionSummary ? (
             <View>
-              <Text style={styles.aiInsightTitle}>Dominant Emotion: {emotionSummary?.dominantEmotion}</Text>
-              {emotionSummary?.emotionScores.map((item: any, index: any) => (
+              <Text style={styles.aiInsightTitle}>Summary</Text>
+              <Text style={styles.transcriptText}>{emotionSummary.summary}</Text>
+
+              <Text style={styles.aiInsightTitle}>Dominant Emotion</Text>
+              <Text style={styles.transcriptText}>{emotionSummary.dominantEmotion}</Text>
+
+              <Text style={styles.aiInsightTitle}>Emotion Scores</Text>
+              {emotionSummary.emotionScores.map((item: any, index: any) => (
                 <View key={index} style={styles.emotionRow}>
                   <Text style={styles.emotionLabel}>{item.emotion}</Text>
                   <View style={styles.emotionBarContainer}>
@@ -240,8 +248,18 @@ export default function RecordingDetailScreen() {
                   </View>
                 </View>
               ))}
+
+              <Text style={styles.aiInsightTitle}>Most Used Words</Text>
+              {emotionSummary.mostUsedWords.map((item: any, index: any) => (
+                <Text key={index} style={styles.transcriptText}>- {item.word} ({item.count})</Text>
+              ))}
+
+              <Text style={styles.aiInsightTitle}>Interesting Insights</Text>
+              {emotionSummary.interestingInsights.map((item: any, index: any) => (
+                <Text key={index} style={styles.transcriptText}>- {item}</Text>
+              ))}
             </View>
-          )}
+          ) : null}
         </CollapsibleSection>
 
       </ScrollView>
@@ -330,5 +348,26 @@ const styles = StyleSheet.create({
     height: 10,
     backgroundColor: '#FCA311',
     borderRadius: 5,
+  },
+  errorContainer: {
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    color: '#ff6b6b',
+    fontSize: 16,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  button: {
+    backgroundColor: '#5E5CE6',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

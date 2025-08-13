@@ -15,7 +15,7 @@ export const analyzeText = async (text: string) => {
       {
         parts: [
           {
-            text: `Analyze the following text and provide a summary of the emotions, the dominant emotion, and a list of emotions with their scores. Respond with ONLY a valid JSON object (no markdown formatting) with the following structure: { "dominantEmotion": "string", "emotionSummary": "string", "emotionScores": [{ "emotion": "string", "score": "number" }] }. The text is: "${text}"`,
+            text: `Analyze the following text and provide a summary of the emotions, the dominant emotion, a sorted list of emotions with their scores (highest first), a summary of the chat, a list of the most used words (excluding common stop words), and some interesting insights. Respond with ONLY a valid JSON object (no markdown formatting) with the following structure: { "dominantEmotion": "string", "emotionSummary": "string", "emotionScores": [{ "emotion": "string", "score": "number" }], "summary": "string", "mostUsedWords": [{ "word": "string", "count": "number" }], "interestingInsights": ["string"] }. The text is: "${text}"`,
           },
         ],
       },

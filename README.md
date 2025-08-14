@@ -25,7 +25,7 @@ To get started with the Speech Insight app, follow these steps:
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-username/speech-insight-app.git
+   git clone https://github.com/mFahadNoor/speech-insight-app.git
    ```
 2. **Install dependencies:**
    ```bash

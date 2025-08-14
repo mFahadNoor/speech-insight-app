@@ -1,6 +1,10 @@
 # Speech Insight App
 
 Speech Insight is a mobile application that records your voice, transcribes it, and provides you with AI-powered insights into your speech patterns and emotions.
+It uses following AI models:
+- Assembly AI for speech to text
+- Custom trained model using GoEmotion dataset for emotion analysis
+- Gemini for text analysis and summary
 
 ## Features
 

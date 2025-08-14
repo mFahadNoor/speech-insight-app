@@ -3,19 +3,16 @@ import { Link } from 'expo-router';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { interpolate, useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
-import CustomIcon from './ui/IconSymbol';
 
 interface RecordingCardProps {
   id: string;
   title: string;
   timestamp: string;
   duration: string;
-  isPlaying: boolean;
-  onPlay: () => void;
   index: number;
 }
 
-const RecordingCard = ({ id, title, timestamp, duration, isPlaying, onPlay, index }: RecordingCardProps) => {
+const RecordingCard = ({ id, title, timestamp, duration, index }: RecordingCardProps) => {
   const scale = useSharedValue(1);
   const progress = useSharedValue(0);
 
@@ -50,12 +47,7 @@ const RecordingCard = ({ id, title, timestamp, duration, isPlaying, onPlay, inde
                 <Text style={styles.title} numberOfLines={1}>{title}</Text>
                 <Text style={styles.subtitle}>{timestamp}</Text>
               </View>
-              <View style={styles.controlsContainer}>
-                <Text style={styles.duration}>{duration}</Text>
-                <Pressable onPress={(e) => { e.stopPropagation(); onPlay(); }} style={styles.playButton}>
-                  <CustomIcon name={isPlaying ? 'pause.fill' : 'play.fill'} color="#fff" size={22} />
-                </Pressable>
-              </View>
+              <Text style={styles.duration}>{duration}</Text>
             </View>
           </BlurView>
         </Animated.View>
@@ -106,24 +98,11 @@ const styles = StyleSheet.create({
     marginTop: 6,
     opacity: 0.8,
   },
-  controlsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   duration: {
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
-    marginRight: 20,
     opacity: 0.9,
-  },
-  playButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });
 

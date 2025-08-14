@@ -2,7 +2,6 @@ import RecordingCard from '@/components/RecordingCard';
 import { RecordingData } from '@/types';
 import { useFocusEffect } from '@react-navigation/native';
 import { format } from 'date-fns';
-import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useState } from 'react';
 import { FlatList, SafeAreaView, StatusBar, StyleSheet, Text, View } from 'react-native';
@@ -13,44 +12,16 @@ const AnimatedFlatList = Animated.createAnimatedComponent(FlatList<RecordingData
 
 export default function HistoryScreen() {
   const [recordings, setRecordings] = useState<RecordingData[]>([]);
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [playingUri, setPlayingUri] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
       loadRecordings();
-      return () => {
-        if (sound) {
-          sound.unloadAsync();
-        }
-      };
-    }, [sound])
+    }, [])
   );
 
   async function loadRecordings() {
     const fetchedRecordings = await getRecordings();
     setRecordings(fetchedRecordings.sort((a, b) => b.timestamp - a.timestamp));
-  }
-
-  async function onPlay(uri: string) {
-    if (sound) {
-      await sound.unloadAsync();
-      setSound(null);
-      setPlayingUri(null);
-      if (playingUri === uri) {
-        return;
-      }
-    }
-
-    const { sound: newSound } = await Audio.Sound.createAsync({ uri });
-    newSound.setOnPlaybackStatusUpdate((status) => {
-      if (status.isLoaded && status.didJustFinish) {
-        setPlayingUri(null);
-      }
-    });
-    setSound(newSound);
-    setPlayingUri(uri);
-    await newSound.playAsync();
   }
 
   const formatTimestamp = (timestamp: number) => {
@@ -70,8 +41,6 @@ export default function HistoryScreen() {
       title={item.title}
       timestamp={formatTimestamp(item.timestamp)}
       duration={formatDuration(item.duration)}
-      isPlaying={playingUri === item.uri}
-      onPlay={() => onPlay(item.uri)}
       index={index}
     />
   );
@@ -109,7 +78,7 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1E1E1E',
+    backgroundColor: '#121212',
   },
   background: {
     position: 'absolute',
@@ -120,37 +89,43 @@ const styles = StyleSheet.create({
   },
   header: {
     color: 'white',
-    fontSize: 34,
+    fontSize: 36,
+    fontFamily: 'System',
     fontWeight: 'bold',
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 40,
+    letterSpacing: 0.5,
   },
   subHeader: {
-    color: '#A0A0A0',
+    color: '#B0B0B0',
     fontSize: 18,
+    fontFamily: 'System',
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
   listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 100,
+    paddingHorizontal: 16,
+    paddingBottom: 120,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: '50%',
+    marginTop: '45%',
   },
   emptyText: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 22,
+    fontFamily: 'System',
     fontWeight: '600',
   },
   emptySubText: {
     color: '#A0A0A0',
     fontSize: 16,
-    marginTop: 12,
+    fontFamily: 'System',
+    marginTop: 16,
     textAlign: 'center',
     paddingHorizontal: 40,
+    lineHeight: 22,
   },
 });

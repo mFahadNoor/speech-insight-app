@@ -81,3 +81,18 @@ export const getRecordingData = async (uri: string): Promise<RecordingData | nul
     return null;
   }
 };
+
+export const updateRecordingData = async (uri: string, newData: Partial<RecordingData>): Promise<void> => {
+    const fileName = uri.split('/').pop()?.replace('.m4a', '');
+    if (!fileName) return;
+  
+    const metadataUri = `${metadataDir}${fileName}.json`;
+    try {
+      const content = await FileSystem.readAsStringAsync(metadataUri);
+      const recordingData = JSON.parse(content) as RecordingData;
+      const updatedData = { ...recordingData, ...newData };
+      await FileSystem.writeAsStringAsync(metadataUri, JSON.stringify(updatedData));
+    } catch (error) {
+      console.error('Failed to update recording data:', error);
+    }
+  };

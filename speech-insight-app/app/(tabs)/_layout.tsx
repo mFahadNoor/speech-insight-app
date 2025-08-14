@@ -31,18 +31,12 @@ export default function TabLayout() {
             tabBarIcon: ({ color }: { color: string }) => <IconSymbol name="house.fill" color={color} size={22} />,
           }}
         />
-        {/* <MaterialTopTabs.Screen
+        <MaterialTopTabs.Screen
           name="history"
           options={{
             tabBarIcon: ({ color }: { color: string }) => <IconSymbol name="clock.fill" color={color} size={22} />,
           }}
-        /> */}
-          <MaterialTopTabs.Screen
-    name="history"
-    options={{
-      tabBarIcon: ({ color }: {color:string}) => <IconSymbol name="clock" color={color} size={24} />
-    }}
-  />
+        />
       </MaterialTopTabs>
     </SafeAreaView>
   );

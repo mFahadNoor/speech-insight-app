@@ -5,6 +5,8 @@ export interface RecordingData {
     duration: number;
     timestamp: number;
     waveformData: number[];
+    transcript?: string;
+    emotionSummary?: EmotionSummary;
   }
   
   export interface EmotionSummary {

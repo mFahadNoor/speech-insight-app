@@ -1,45 +1,49 @@
 # Speech Insight App
 
-This is a mobile application built with React Native and Expo that allows users to record their speech, get it transcribed, and analyze the emotional content of the text.
+Speech Insight is a mobile application that records your voice, transcribes it, and provides you with AI-powered insights into your speech patterns and emotions.
 
 ## Features
 
-1.  **Speech Recording**: Record audio directly from the app.
-2.  **Speech-to-Text**: Utilizes **Whisper AI** for accurate transcription.
-3.  **Emotion Analysis**: A custom-trained model using Google's GoEmotion dataset analyzes the text to determine emotional tone.
-4.  **AI-Powered Insights**: Uses **Gemini** to display relevant information and insights based on the analysis.
+- **Voice Recording:** Easily record your voice with a simple tap.
+- **Transcription:** Get accurate transcriptions of your recordings.
+- **AI Insights:** Discover insights into your emotions, most used words, and more.
+- **History:** Keep track of all your recordings and insights.
+
+## Screenshots
+
+| Recording Screen | Recordings Screen | Recorded Screen |
+| :---: | :---: | :---: |
+| <img src="imgs/recording.jpg" width="200"/> | <img src="imgs/recordings.jpg" width="200"/> | <img src="imgs/recorded.jpg" width="200"/> |
 
 ## Getting Started
 
-### Prerequisites
+To get started with the Speech Insight app, follow these steps:
 
-- Node.js and npm
-- Expo CLI
-- An account with AssemblyAI and a corresponding API key.
-- A Google Cloud Platform account with the Gemini API enabled and a corresponding API key.
-
-### Installation & Setup
-
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/your-username/speech-insight-app.git
-    cd speech-insight-app
-    ```
-
-2.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
-
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/your-username/speech-insight-app.git
+   ```
+2. **Install dependencies:**
+   ```bash
+   cd speech-insight-app
+   npm install
+   ```
 3.  **Set up environment variables:**
-    Create a `.env` file in the `speech-insight-app` directory and add your API keys:
+Create a `.env` file in the `speech-insight-app` directory and add your API keys:
     ```
     ASSEMBLYAI_API_KEY="YOUR_ASSEMBLYAI_API_KEY"
     GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
     ```
 
-4.  **Run the application:**
-    ```bash
-    npm start
-    ```
-    This will start the Metro bundler. You can then run the app on an Android or iOS simulator, or on a physical device using the Expo Go app.
+4. **Run the app:**
+   ```bash
+   npm start
+   ```
+
+## Contributing
+
+Contributions are welcome! If you have any ideas, suggestions, or bug reports, please open an issue or submit a pull request.
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.

@@ -9,9 +9,9 @@ interface CollapsibleSectionProps {
 }
 
 const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({ title, children }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const rotation = useSharedValue(0);
-  const height = useSharedValue(0);
+  const [isExpanded, setIsExpanded] = useState(true);
+  const rotation = useSharedValue(isExpanded ? 180 : 0);
+  const height = useSharedValue(isExpanded ? 'auto' : 0);
 
   const toggleExpand = () => {
     setIsExpanded(!isExpanded);
@@ -48,27 +48,34 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({ title, children
 };
 
 const styles = StyleSheet.create({
-  container: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 16,
-    marginTop: 20,
-    overflow: 'hidden',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-  },
-  title: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  content: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-});
+    container: {
+      backgroundColor: 'rgba(45, 45, 45, 0.8)',
+      borderRadius: 16,
+      marginTop: 20,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.1)',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 10,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 20,
+    },
+    title: {
+      color: '#fff',
+      fontSize: 18,
+      fontWeight: 'bold',
+    },
+    content: {
+      paddingHorizontal: 20,
+      paddingBottom: 20,
+    },
+  });
+  
 
 export default CollapsibleSection;

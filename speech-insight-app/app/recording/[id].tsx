@@ -11,7 +11,7 @@ import { ActivityIndicator, Keyboard, Pressable, ScrollView, StyleSheet, Text, T
 import { useSharedValue } from 'react-native-reanimated';
 import { getTranscriptionResult, transcribeAudio, uploadAudio } from '../services/assemblyai';
 import { analyzeText } from '../services/gemini';
-import { getRecordingData } from '../services/storage';
+import { getRecordingData, updateRecordingData } from '../services/storage';
 
 const Button = ({ title, onPress, style, textStyle }: any) => (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.button, { opacity: pressed ? 0.7 : 1 }, style]}>
@@ -51,11 +51,12 @@ export default function RecordingDetailScreen() {
 
       const summary = JSON.parse(responseText);
       setEmotionSummary(summary);
+      await updateRecordingData(decodedUri, { emotionSummary: summary });
     } catch (e: any) {
       setError(e.message || 'An unknown error occurred during analysis.');
     }
     setIsAnalyzing(false);
-  }, []);
+  }, [decodedUri]);
 
   const transcribeRecording = useCallback(async (uri: string) => {
     setIsTranscribing(true);
@@ -68,6 +69,7 @@ export default function RecordingDetailScreen() {
         const result = await getTranscriptionResult(transcriptId);
         if (result.status === 'completed') {
           setTranscript(result.text);
+          await updateRecordingData(uri, { transcript: result.text });
           if (result.text) {
             analyzeTranscript(result.text);
           }
@@ -84,21 +86,31 @@ export default function RecordingDetailScreen() {
       setError(e.message || 'An unknown error occurred during transcription.');
       setIsTranscribing(false);
     }
-  }, [analyzeTranscript]);
+  }, [analyzeTranscript, decodedUri]);
+
+  const loadRecording = useCallback(async () => {
+    if (!decodedUri) return;
+    const data = await getRecordingData(decodedUri);
+    setRecordingData(data);
+    setTitle(data?.title || 'Recording');
+    
+    if (data?.transcript) {
+      setTranscript(data.transcript);
+    }
+    if (data?.emotionSummary) {
+      setEmotionSummary(data.emotionSummary);
+    }
+
+    if (data?.uri && !data.transcript) {
+      transcribeRecording(data.uri);
+    } else if (data?.transcript && !data.emotionSummary) {
+      analyzeTranscript(data.transcript);
+    }
+  }, [decodedUri, transcribeRecording, analyzeTranscript]);
 
   useEffect(() => {
-    const loadRecording = async () => {
-      if (!decodedUri) return;
-      const data = await getRecordingData(decodedUri);
-      setRecordingData(data);
-      setTitle(data?.title || 'Recording');
-      
-      if (data?.uri) {
-        transcribeRecording(data.uri);
-      }
-    };
     loadRecording();
-  }, [decodedUri, transcribeRecording]);
+  }, [loadRecording]);
 
   const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
@@ -108,28 +120,29 @@ export default function RecordingDetailScreen() {
     progress.value = (status.positionMillis || 0) / (status.durationMillis || 1);
   }, [progress]);
 
-  useEffect(() => {
-    const loadSound = async () => {
-      if (!recordingData) return;
-      try {
-        const { sound: newSound, status } = await Audio.Sound.createAsync(
-          { uri: recordingData.uri },
-          { shouldPlay: false, progressUpdateIntervalMillis: 100 },
-          onPlaybackStatusUpdate
-        );
-        setSound(newSound);
-        if (status.isLoaded) {
-          setDuration(status.durationMillis || 0);
-        }
-      } catch (error) {
-        console.error("Failed to load sound", error);
+  const loadSound = useCallback(async () => {
+    if (!recordingData) return;
+    try {
+      const { sound: newSound, status } = await Audio.Sound.createAsync(
+        { uri: recordingData.uri },
+        { shouldPlay: false, progressUpdateIntervalMillis: 100 },
+        onPlaybackStatusUpdate
+      );
+      setSound(newSound);
+      if (status.isLoaded) {
+        setDuration(status.durationMillis || 0);
       }
-    };
+    } catch (error) {
+      console.error("Failed to load sound", error);
+    }
+  }, [recordingData, onPlaybackStatusUpdate]);
+
+  useEffect(() => {
     loadSound();
     return () => {
       sound?.unloadAsync();
     };
-  }, [recordingData, onPlaybackStatusUpdate, sound]);
+  }, [loadSound]);
 
   const handlePlayPause = async () => {
     if (!sound) return;
@@ -175,11 +188,6 @@ export default function RecordingDetailScreen() {
   return (
     <Pressable style={styles.container} onPress={Keyboard.dismiss}>
       <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-      <View style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
-          <IconSymbol name="chevron.backward" size={24} color="#fff" />
-        </Pressable>
-      </View>
       <ScrollView style={styles.content}>
         <TextInput
           style={styles.titleInput}
@@ -224,7 +232,7 @@ export default function RecordingDetailScreen() {
         </CollapsibleSection>
 
         <CollapsibleSection title="AI Insights">
-          {isAnalyzing ? (
+          {isAnalyzing || (transcript && !emotionSummary && !error) ? (
             <ActivityIndicator color="#fff" />
           ) : error && transcript ? (
             <View style={styles.errorContainer}>
@@ -272,7 +280,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    marginTop: 60,
+    marginTop: 20,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 20,
@@ -320,12 +328,12 @@ const styles = StyleSheet.create({
   },
   transcriptText: {
     color: '#E0E0E0',
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 14,
+    lineHeight: 20,
   },
   aiInsightTitle: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: 'bold',
     marginBottom: 12,
   },
@@ -337,6 +345,7 @@ const styles = StyleSheet.create({
   emotionLabel: {
     color: '#E0E0E0',
     width: 80,
+    fontSize: 12,
   },
   emotionBarContainer: {
     flex: 1,
